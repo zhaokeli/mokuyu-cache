@@ -209,6 +209,8 @@ class Cache implements CacheInterface
     {
         if ($lifeTime === true || null === $lifeTime) {
             $lifeTime = $this->cacheConfig['temp_time'];
+        } elseif ($lifeTime === false) {
+            $lifeTime = $this->cacheConfig['expire'];
         }
 
         return $this->instance->save($this->parseKey($key), $data, $lifeTime) ? true : false;
