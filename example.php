@@ -22,9 +22,15 @@ $cache = new \mokuyu\Cache([
     // 文件缓存目录
     'path'      => __dir__ . '/datacache',
 ]);
+$cache->set('phone_code', 12345, 160);
+
+$cache->clear();
+echo $cache->get('phone_code');
 $cache->set('test.value1', 'testtest', false);
 $cache->set('test.value2', 'testtest', false);
 $cache->set('new.value1', 'testtest', false);
 $cache->set('new.value2', 'testtest', false);
 
 $cache->delete('test.');
+
+$cache->clear();
