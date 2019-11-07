@@ -117,6 +117,7 @@ class Cache implements CacheInterface
         $tags = $this->get($this->allTagKey, []);
         //如果最后一个为分隔符,则清空这个标签
         if (substr($key, -1) == $this->fenge) {
+
             $tag = substr($key, 0, -1);
             if (in_array($tag, array_keys($tags))) {
                 $tagarr  = $tags[$tag];
@@ -134,9 +135,12 @@ class Cache implements CacheInterface
                     $tags[$tag] = $tagcopy;
                 }
                 $this->set($this->allTagKey, $tags, false);
+
+                return true;
+            } else {
+                return false;
             }
 
-            return true;
         } else {
             list($tagkey, $val) = explode($this->fenge, $key);
             unset($tags[$tagkey][$val]);
@@ -233,22 +237,26 @@ class Cache implements CacheInterface
      */
     private function parseKey(string $key): string
     {
+        //all标签key名字
+        $alltagkey = $this->defaultTag . $this->fenge . $this->allTagKey;
         //已经解析过的直接返回
         if (strpos($this->fenge, $key) !== false) {
             return $key;
         }
         $key = str_replace('.', $this->fenge, $key);
         //加载缓存的前缀
-        $key = strtolower($key);
+        // $key = strtolower($key);
         if (strpos($key, $this->fenge) === false) {
             $tag = $this->defaultTag;
         } else {
             list($tag, $key) = explode($this->fenge, $key);
         }
-        $tags = (array) $this->instance->fetch($this->allTagKey);
-        if (!($tags && isset($tags[$tag]) && isset(array_flip($tags[$tag])[$key]))) {
+        $tags = $this->instance->fetch($alltagkey);
+        $tags = $tags ?: [];
+
+        if ($key && !($tags && isset($tags[$tag]) && isset(array_flip($tags[$tag])[$key]))) {
             $tags[$tag][$key] = $key;
-            $this->instance->save($this->allTagKey, $tags, false);
+            $this->instance->save($alltagkey, $tags, false);
         }
 
         return $tag . $this->fenge . $key;

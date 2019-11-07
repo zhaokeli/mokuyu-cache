@@ -3,7 +3,7 @@ include __dir__ . '/vendor/autoload.php';
 
 $cache = new \mokuyu\Cache([
     //目前支持file和memcache redis
-    'type'      => 'file',
+    'type'      => 'redis',
     'memcache'  => [
         'host' => '127.0.0.1',
         'port' => 11211,
@@ -18,7 +18,13 @@ $cache = new \mokuyu\Cache([
     'expire'    => 0,
     'temp_time' => 60, //单位秒
                        // 缓存前缀
-    'prefix'    => 'ank_',
+    'prefix'    => 'mokuyu',
     // 文件缓存目录
     'path'      => __dir__ . '/datacache',
 ]);
+$cache->set('test.value1', 'testtest', false);
+$cache->set('test.value2', 'testtest', false);
+$cache->set('new.value1', 'testtest', false);
+$cache->set('new.value2', 'testtest', false);
+
+$cache->delete('test.');
