@@ -11,8 +11,6 @@ class Cache implements CacheInterface
 
     protected $allTagKey = 'AllTags';
 
-    protected $app = null;
-
     protected $cacheConfig = [];
 
     protected $cacheType = '';
@@ -34,17 +32,13 @@ class Cache implements CacheInterface
      *
      * @return [type]
      */
-    public function __construct(App $app)
+    public function __construct($config)
     {
-        $this->app         = $app;
-        $this->cacheConfig = $app->config('cache');
+        $this->cacheConfig = $config;
         $this->cacheType   = $this->cacheConfig['type'];
         $this->cacheType   = strtolower($this->cacheType ?: 'file');
         $this->prefix      = $this->cacheConfig['prefix'];
         $cache_path        = $this->cacheConfig['path'];
-        if (!$cache_path) {
-            $cache_path = $app->getRuntimePath . '/datacache';
-        }
 
         if ($this->cacheType == 'memcache' && class_exists('Memcache')) {
             $memcache = new \Memcache();
@@ -70,6 +64,10 @@ class Cache implements CacheInterface
             $this->instance->setRedis($redis);
 
         } else {
+            if (!$cache_path) {
+                throw new Exception('cache path is empty', 1);
+
+            }
             $this->instance = new \Doctrine\Common\Cache\FilesystemCache($cache_path);
         }
         $this->instance->setNamespace($this->prefix . ':');
