@@ -7,8 +7,6 @@ use Psr\SimpleCache\InvalidArgumentException;
 
 class Cache implements CacheInterface
 {
-    const NOT_SET_VALUE = '___noset___';
-
     protected $allTagKey = 'AllTags';
 
     protected $cacheConfig = [];
@@ -73,29 +71,6 @@ class Cache implements CacheInterface
         $this->instance->setNamespace($this->prefix . ':');
 
         return $this->instance;
-    }
-
-    /**
-     * 自动操作缓存
-     * @DateTime 2019-11-07
-     * @Author   mokuyu
-     *
-     * @param  [type]   $name     缓存键名
-     * @param  string   $value    默认为一个自定义常量,因为传null的话识别为删除缓存
-     * @param  boolean  $lifeTime 默认为(false)永久保存,true/null为系统默认存活时长，int为时长
-     * @return [type]
-     */
-    public function action($name, $value = self::NOT_SET_VALUE, $lifeTime = false)
-    {
-        if (null === $name) {
-            return $this->clear();
-        } elseif ($name && null === $value) {
-            return $this->delete($name);
-        } elseif ($name && self::NOT_SET_VALUE === $value) {
-            return $this->has($name) ? $this->get($name) : false;
-        } else {
-            return $this->set($name, $value, $lifeTime);
-        }
     }
 
     public function clear()
