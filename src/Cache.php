@@ -7,19 +7,52 @@ use Psr\SimpleCache\InvalidArgumentException;
 
 class Cache implements CacheInterface
 {
+    /**
+     * 保存标签和标签中包含的key的键
+     * @var string
+     */
     protected $allTagKey = 'AllTags';
 
+    /**
+     * 当前缓存的所有标签
+     * @var array
+     */
+    protected $allTags = null;
+
+    /**
+     * 缓存配置
+     * @var array
+     */
     protected $cacheConfig = [];
 
+    /**
+     * 当前使用的缓存类型
+     * @var string
+     */
     protected $cacheType = '';
 
-    //默认所有缓存数据加到这个标签里
+    /**
+     * 没有加标签的key默认加到这个标签里
+     * @var string
+     */
     protected $defaultTag = 'DefaultTag';
 
+    /**
+     * 标签key的分隔符
+     * @var string
+     */
     protected $fenge = ':';
 
+    /**
+     * 缓存驱动实例
+     * @var null
+     */
     protected $instance = null;
 
+    /**
+     * 缓存前缀,一般一个项目对应一个前缀
+     * @var string
+     */
     protected $prefix = '';
 
     /**
@@ -88,14 +121,15 @@ class Cache implements CacheInterface
 
     public function delete($key)
     {
-        $key  = $this->parseKey($key);
-        $tags = $this->get($this->allTagKey, []);
+        $key = $this->parseKey($key);
+        // $this->allTags = $this->get($this->allTagKey, []);
         //如果最后一个为分隔符,则清空这个标签
         if (substr($key, -1) == $this->fenge) {
 
             $tag = substr($key, 0, -1);
-            if (in_array($tag, array_keys($tags))) {
-                $tagarr  = $tags[$tag];
+            // if (in_array($tag, array_keys($this->allTags))) {
+            if (isset($this->allTags[$tag])) {
+                $tagarr  = $this->allTags[$tag];
                 $tagcopy = $tagarr;
                 foreach ($tagarr as $key => $value) {
                     unset($tagcopy[$value]);
@@ -105,11 +139,11 @@ class Cache implements CacheInterface
                     }
                 }
                 if (count($tagcopy) == 0) {
-                    unset($tags[$tag]);
+                    unset($this->allTags[$tag]);
                 } else {
-                    $tags[$tag] = $tagcopy;
+                    $this->allTags[$tag] = $tagcopy;
                 }
-                $this->set($this->allTagKey, $tags, false);
+                $this->set($this->allTagKey, $this->allTags, false);
 
                 return true;
             } else {
@@ -118,11 +152,14 @@ class Cache implements CacheInterface
 
         } else {
             list($tagkey, $val) = explode($this->fenge, $key);
-            unset($tags[$tagkey][$val]);
-            if (isset($tags[$tagkey]) && count($tags[$tagkey]) == 0) {
-                unset($tags[$tagkey]);
+            unset($this->allTags[$tagkey][$val]);
+            //删除掉空的标签
+            if (isset($this->allTags[$tagkey]) && count($this->allTags[$tagkey]) == 0) {
+                unset($this->allTags[$tagkey]);
             }
-            $this->set($this->allTagKey, $tags, false);
+            //保存所有标签到缓存
+            $this->set($this->allTagKey, $this->allTags, false);
+            //有值的话就删除
             if ($this->has($key)) {
                 return $this->instance->delete($key);
             } else {
@@ -214,6 +251,7 @@ class Cache implements CacheInterface
      */
     private function parseKey(string $key): string
     {
+        // \ank\App::getInstance()->get('debug')->markStart('Cache:parse');
         //all标签key名字
         $alltagkey = $this->defaultTag . $this->fenge . $this->allTagKey;
         //已经解析过的直接返回
@@ -228,13 +266,18 @@ class Cache implements CacheInterface
         } else {
             list($tag, $key) = explode($this->fenge, $key);
         }
-        $tags = $this->instance->fetch($alltagkey);
-        $tags = $tags ?: [];
-
-        if ($key && !($tags && isset($tags[$tag]) && isset(array_flip($tags[$tag])[$key]))) {
-            $tags[$tag][$key] = $key;
-            $this->instance->save($alltagkey, $tags, false);
+        if ($this->allTags === null) {
+            $this->allTags = $this->instance->fetch($alltagkey);
+            $this->allTags = $this->allTags ?: [];
         }
+
+        //判断key是否为真,为真时才往标签里添加key和值，当是article.这种格式时key为空
+        //然后判断是否设置的有些标签，并且标签里是否保存有
+        if ($key && !(isset($this->allTags[$tag]) && isset($this->allTags[$tag][$key]))) {
+            $this->allTags[$tag][$key] = $key;
+            $this->instance->save($alltagkey, $this->allTags, false);
+        }
+        // \ank\App::getInstance()->get('debug')->markEnd('Cache:parse');
 
         return $tag . $this->fenge . $key;
     }
