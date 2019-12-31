@@ -71,7 +71,7 @@ class Cache implements CacheInterface
         $this->prefix      = $this->cacheConfig['prefix'];
         $cache_path        = $this->cacheConfig['path'];
 
-        if ($this->cacheType == 'memcache' && class_exists('Memcache')) {
+        if ($this->cacheType == 'memcache' && extension_loaded('memcache')) {
             $memcache = new \Memcache();
             $memcache->connect($this->cacheConfig['memcache']['host'], $this->cacheConfig['memcache']['port']);
             $this->instance = new \Doctrine\Common\Cache\MemcacheCache();
@@ -81,7 +81,7 @@ class Cache implements CacheInterface
             $memcached->addServer($this->cacheConfig['memcached']['host'], $this->cacheConfig['memcached']['port']);
             $this->instance = new \Doctrine\Common\Cache\MemcacheCache();
             $this->instance->setMemcached($memcached);
-        } elseif ($this->cacheType == 'redis' && class_exists('Redis')) {
+        } elseif ($this->cacheType == 'redis' && extension_loaded('redis')) {
             $redis = new \Redis();
 
             $redis->connect($this->cacheConfig['redis']['host'], $this->cacheConfig['redis']['port']);
