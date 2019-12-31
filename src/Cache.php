@@ -2,6 +2,10 @@
 declare (strict_types = 1);
 namespace mokuyu;
 
+use Doctrine\Common\Cache\FilesystemCache;
+use Doctrine\Common\Cache\MemcacheCache;
+use Doctrine\Common\Cache\RedisCache;
+use Psr\SimpleCache\CacheException;
 use Psr\SimpleCache\CacheInterface;
 use Psr\SimpleCache\InvalidArgumentException;
 
@@ -74,12 +78,12 @@ class Cache implements CacheInterface
         if ($this->cacheType == 'memcache' && extension_loaded('memcache')) {
             $memcache = new \Memcache();
             $memcache->connect($this->cacheConfig['memcache']['host'], $this->cacheConfig['memcache']['port']);
-            $this->instance = new \Doctrine\Common\Cache\MemcacheCache();
+            $this->instance = new MemcacheCache();
             $this->instance->setMemcache($memcache);
         } elseif ($this->cacheType == 'memcached') {
             $memcached = new \Memcached();
             $memcached->addServer($this->cacheConfig['memcached']['host'], $this->cacheConfig['memcached']['port']);
-            $this->instance = new \Doctrine\Common\Cache\MemcacheCache();
+            $this->instance = new MemcacheCache();
             $this->instance->setMemcached($memcached);
         } elseif ($this->cacheType == 'redis' && extension_loaded('redis')) {
             $redis = new \Redis();
@@ -91,15 +95,15 @@ class Cache implements CacheInterface
             }
             $redis->select($this->cacheConfig['redis']['index']);
             // $redis->setOption(\Redis::OPT_PREFIX, $this->prefix . ':');
-            $this->instance = new \Doctrine\Common\Cache\RedisCache();
+            $this->instance = new RedisCache();
             $this->instance->setRedis($redis);
 
         } else {
             if (!$cache_path) {
-                throw new Exception('cache path is empty', 1);
+                throw new CacheException('cache path is empty', 1);
 
             }
-            $this->instance = new \Doctrine\Common\Cache\FilesystemCache($cache_path);
+            $this->instance = new FilesystemCache($cache_path);
         }
         $this->instance->setNamespace($this->prefix . ':');
 
