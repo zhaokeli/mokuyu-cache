@@ -238,12 +238,9 @@ class Cache implements CacheInterface
         }
     }
 
-    public function set($key, $data, $lifeTime = null)
+    public function set($key, $data, $lifeTime = false)
     {
-        if ($lifeTime === true || null === $lifeTime) {
-            $lifeTime = $this->cacheConfig['temp_time'];
-        }
-        elseif ($lifeTime === false) {
+        if ($lifeTime === false) {
             $lifeTime = $this->cacheConfig['expire'];
         }
 
