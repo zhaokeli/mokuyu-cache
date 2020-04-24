@@ -1,5 +1,6 @@
 <?php
 declare (strict_types = 1);
+
 namespace mokuyu;
 
 use Doctrine\Common\Cache\FilesystemCache;
@@ -64,15 +65,14 @@ class Cache implements CacheInterface
      * @authname [权限名字]     0
      * @DateTime 2019-01-08
      * @Author   mokuyu
-     *
-     * @return [type]
+     * @return   [type]
      */
     public function __construct($config)
     {
         $this->cacheConfig = $config;
         $this->cacheType   = $this->cacheConfig['type'];
         $this->cacheType   = strtolower($this->cacheType ?: 'file');
-        $this->prefix      = $this->cacheConfig['prefix'];
+        $this->prefix      = trim($this->cacheConfig['prefix'], ':');
         $cache_path        = $this->cacheConfig['path'];
 
         if ($this->cacheType == 'memcache' && extension_loaded('memcache')) {
@@ -80,12 +80,14 @@ class Cache implements CacheInterface
             $memcache->connect($this->cacheConfig['memcache']['host'], $this->cacheConfig['memcache']['port']);
             $this->instance = new MemcacheCache();
             $this->instance->setMemcache($memcache);
-        } elseif ($this->cacheType == 'memcached') {
+        }
+        elseif ($this->cacheType == 'memcached') {
             $memcached = new \Memcached();
             $memcached->addServer($this->cacheConfig['memcached']['host'], $this->cacheConfig['memcached']['port']);
             $this->instance = new MemcacheCache();
             $this->instance->setMemcached($memcached);
-        } elseif ($this->cacheType == 'redis' && extension_loaded('redis')) {
+        }
+        elseif ($this->cacheType == 'redis' && extension_loaded('redis')) {
             $redis = new \Redis();
 
             $redis->connect($this->cacheConfig['redis']['host'], $this->cacheConfig['redis']['port']);
@@ -98,14 +100,15 @@ class Cache implements CacheInterface
             $this->instance = new RedisCache();
             $this->instance->setRedis($redis);
 
-        } else {
+        }
+        else {
             if (!$cache_path) {
                 throw new CacheException('cache path is empty', 1);
 
             }
             $this->instance = new FilesystemCache($cache_path);
         }
-        $this->instance->setNamespace($this->prefix . ':');
+        $this->prefix && $this->instance->setNamespace($this->prefix . ':');
 
         return $this->instance;
     }
@@ -144,17 +147,20 @@ class Cache implements CacheInterface
                 }
                 if (count($tagcopy) == 0) {
                     unset($this->allTags[$tag]);
-                } else {
+                }
+                else {
                     $this->allTags[$tag] = $tagcopy;
                 }
                 $this->set($this->allTagKey, $this->allTags, false);
 
                 return true;
-            } else {
+            }
+            else {
                 return false;
             }
 
-        } else {
+        }
+        else {
             list($tagkey, $val) = explode($this->fenge, $key);
             unset($this->allTags[$tagkey][$val]);
             //删除掉空的标签
@@ -166,7 +172,8 @@ class Cache implements CacheInterface
             //有值的话就删除
             if ($this->has($key)) {
                 return $this->instance->delete($key);
-            } else {
+            }
+            else {
                 return false;
             }
         }
@@ -225,7 +232,8 @@ class Cache implements CacheInterface
     {
         if ($lifeTime === true || null === $lifeTime) {
             $lifeTime = $this->cacheConfig['temp_time'];
-        } elseif ($lifeTime === false) {
+        }
+        elseif ($lifeTime === false) {
             $lifeTime = $this->cacheConfig['expire'];
         }
 
@@ -249,9 +257,8 @@ class Cache implements CacheInterface
      * @authname [权限名字]     0
      * @DateTime 2018-12-23
      * @Author   mokuyu
-     *
-     * @param  [type]   $key [description]
-     * @return [type]
+     * @param    [type]   $key [description]
+     * @return   [type]
      */
     private function parseKey(string $key): string
     {
@@ -267,7 +274,8 @@ class Cache implements CacheInterface
         // $key = strtolower($key);
         if (strpos($key, $this->fenge) === false) {
             $tag = $this->defaultTag;
-        } else {
+        }
+        else {
             list($tag, $key) = explode($this->fenge, $key);
         }
         if ($this->allTags === null) {
