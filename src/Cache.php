@@ -6,9 +6,10 @@ namespace mokuyu;
 use Doctrine\Common\Cache\FilesystemCache;
 use Doctrine\Common\Cache\MemcacheCache;
 use Doctrine\Common\Cache\RedisCache;
-use Psr\SimpleCache\CacheException;
 use Psr\SimpleCache\CacheInterface;
-use Psr\SimpleCache\InvalidArgumentException;
+use Memcache;
+use Memcached;
+use Redis;
 
 class Cache implements CacheInterface
 {
@@ -65,7 +66,8 @@ class Cache implements CacheInterface
      * @authname [权限名字]     0
      * @DateTime 2019-01-08
      * @Author   mokuyu
-     * @return   [type]
+     * @param $config
+     * @throws CacheException
      */
     public function __construct($config)
     {
@@ -76,19 +78,19 @@ class Cache implements CacheInterface
         $cache_path        = $this->cacheConfig['path'];
 
         if ($this->cacheType == 'memcache' && extension_loaded('memcache')) {
-            $memcache = new \Memcache();
+            $memcache = new Memcache();
             $memcache->connect($this->cacheConfig['memcache']['host'], $this->cacheConfig['memcache']['port']);
             $this->instance = new MemcacheCache();
             $this->instance->setMemcache($memcache);
         }
         elseif ($this->cacheType == 'memcached') {
-            $memcached = new \Memcached();
+            $memcached = new Memcached();
             $memcached->addServer($this->cacheConfig['memcached']['host'], $this->cacheConfig['memcached']['port']);
             $this->instance = new MemcacheCache();
             $this->instance->setMemcached($memcached);
         }
         elseif ($this->cacheType == 'redis' && extension_loaded('redis')) {
-            $redis = new \Redis();
+            $redis = new Redis();
 
             $redis->connect($this->cacheConfig['redis']['host'], $this->cacheConfig['redis']['port']);
             $pwd = $this->cacheConfig['redis']['password'];
@@ -115,7 +117,7 @@ class Cache implements CacheInterface
 
     public function clear()
     {
-        return $this->instance->deleteAll() ? true : false;
+        return $this->instance->deleteAll();
     }
 
     public function dec($key = '', $value = 1)
@@ -123,7 +125,11 @@ class Cache implements CacheInterface
         if (!$key) {
             return false;
         }
-        $this->has($key) ? $this->set($key, $this->get($key) - $value) : $this->set($key, -$value);
+        try {
+            return $this->has($key) ? $this->set($key, $this->get($key) - $value) : $this->set($key, -$value);
+        } catch (\Psr\SimpleCache\InvalidArgumentException $e) {
+            return false;
+        }
     }
 
     public function delete($key)
@@ -161,7 +167,7 @@ class Cache implements CacheInterface
 
         }
         else {
-            list($tagkey, $val) = explode($this->fenge, $key);
+            [$tagkey, $val] = explode($this->fenge, $key);
             unset($this->allTags[$tagkey][$val]);
             //删除掉空的标签
             if (isset($this->allTags[$tagkey]) && count($this->allTags[$tagkey]) == 0) {
@@ -181,7 +187,7 @@ class Cache implements CacheInterface
 
     public function deleteMultiple($keys)
     {
-        if (!is_array($values)) {
+        if (!is_array($keys)) {
             throw new InvalidArgumentException('keys array format is valid!', 1);
         }
         foreach ($keys as $key => $value) {
@@ -225,7 +231,11 @@ class Cache implements CacheInterface
             return false;
         }
 
-        return $this->has($key) ? $this->set($key, $this->get($key) + $value) : $this->set($key, $value);
+        try {
+            return $this->has($key) ? $this->set($key, $this->get($key) + $value) : $this->set($key, $value);
+        } catch (\Psr\SimpleCache\InvalidArgumentException $e) {
+            return false;
+        }
     }
 
     public function set($key, $data, $lifeTime = null)
@@ -237,7 +247,7 @@ class Cache implements CacheInterface
             $lifeTime = $this->cacheConfig['expire'];
         }
 
-        return $this->instance->save($this->parseKey($key), $data, $lifeTime) ? true : false;
+        return $this->instance->save($this->parseKey($key), $data, $lifeTime);
     }
 
     public function setMultiple($values, $ttl = null)
@@ -257,8 +267,8 @@ class Cache implements CacheInterface
      * @authname [权限名字]     0
      * @DateTime 2018-12-23
      * @Author   mokuyu
-     * @param    [type]   $key [description]
-     * @return   [type]
+     * @param string $key
+     * @return string [type]
      */
     private function parseKey(string $key): string
     {
@@ -276,7 +286,7 @@ class Cache implements CacheInterface
             $tag = $this->defaultTag;
         }
         else {
-            list($tag, $key) = explode($this->fenge, $key);
+            [$tag, $key] = explode($this->fenge, $key);
         }
         if ($this->allTags === null) {
             $this->allTags = $this->instance->fetch($alltagkey);
