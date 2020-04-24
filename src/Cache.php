@@ -115,23 +115,31 @@ class Cache implements CacheInterface
         return $this->instance;
     }
 
+    /**
+     * @return bool
+     */
     public function clear()
     {
         return $this->instance->deleteAll();
     }
 
+    /**
+     * @param string $key
+     * @param int    $value
+     * @return bool
+     */
     public function dec($key = '', $value = 1)
     {
         if (!$key) {
             return false;
         }
-        try {
-            return $this->has($key) ? $this->set($key, $this->get($key) - $value) : $this->set($key, -$value);
-        } catch (\Psr\SimpleCache\InvalidArgumentException $e) {
-            return false;
-        }
+        return $this->has($key) ? $this->set($key, $this->get($key) - $value) : $this->set($key, -$value);
     }
 
+    /**
+     * @param string $key
+     * @return bool
+     */
     public function delete($key)
     {
         $key = $this->parseKey($key);
@@ -185,10 +193,14 @@ class Cache implements CacheInterface
         }
     }
 
+    /**
+     * @param iterable $keys
+     * @return bool
+     */
     public function deleteMultiple($keys)
     {
         if (!is_array($keys)) {
-            throw new InvalidArgumentException('keys array format is valid!', 1);
+            return false;
         }
         foreach ($keys as $key => $value) {
             if (!$this->delete($this->parseKey($value))) {
@@ -199,6 +211,11 @@ class Cache implements CacheInterface
         return true;
     }
 
+    /**
+     * @param string $key
+     * @param null   $default
+     * @return false|mixed|null
+     */
     public function get($key, $default = null)
     {
         $key = $this->parseKey($key);
@@ -206,6 +223,11 @@ class Cache implements CacheInterface
         return $this->has($key) ? $this->instance->fetch($key) : $default;
     }
 
+    /**
+     * @param iterable $keys
+     * @param null     $default
+     * @return array|iterable
+     */
     public function getMultiple($keys, $default = null)
     {
         if (is_string($keys)) {
@@ -220,24 +242,34 @@ class Cache implements CacheInterface
         return $data;
     }
 
+    /**
+     * @param string $key
+     * @return bool
+     */
     public function has($key)
     {
         return $this->instance->contains($this->parseKey($key));
     }
 
+    /**
+     * @param string $key
+     * @param int    $value
+     * @return bool
+     */
     public function inc($key = '', $value = 1)
     {
         if (!$key) {
             return false;
         }
-
-        try {
-            return $this->has($key) ? $this->set($key, $this->get($key) + $value) : $this->set($key, $value);
-        } catch (\Psr\SimpleCache\InvalidArgumentException $e) {
-            return false;
-        }
+        return $this->has($key) ? $this->set($key, $this->get($key) + $value) : $this->set($key, $value);
     }
 
+    /**
+     * @param string $key
+     * @param mixed  $data
+     * @param bool   $lifeTime
+     * @return bool
+     */
     public function set($key, $data, $lifeTime = false)
     {
         if ($lifeTime === false) {
@@ -247,10 +279,15 @@ class Cache implements CacheInterface
         return $this->instance->save($this->parseKey($key), $data, $lifeTime);
     }
 
+    /**
+     * @param iterable $values
+     * @param null     $ttl
+     * @return bool
+     */
     public function setMultiple($values, $ttl = null)
     {
         if (!is_array($values)) {
-            throw new InvalidArgumentException('values array format is valid!', 1);
+            return false;
         }
         foreach ($values as $key => $value) {
             $this->set($key, $value, $ttl);
