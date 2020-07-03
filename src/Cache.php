@@ -50,10 +50,10 @@ class Cache implements CacheInterface
     protected $fenge = ':';
 
     /**
-     * 缓存驱动实例
+     * 缓存驱动句柄
      * @var null
      */
-    protected $instance = null;
+    protected $handler = null;
 
     /**
      * 缓存前缀,一般一个项目对应一个前缀
@@ -80,14 +80,14 @@ class Cache implements CacheInterface
         if ($this->cacheType == 'memcache' && extension_loaded('memcache')) {
             $memcache = new Memcache();
             $memcache->connect($this->cacheConfig['memcache']['host'], $this->cacheConfig['memcache']['port']);
-            $this->instance = new MemcacheCache();
-            $this->instance->setMemcache($memcache);
+            $this->handler = new MemcacheCache();
+            $this->handler->setMemcache($memcache);
         }
         elseif ($this->cacheType == 'memcached') {
             $memcached = new Memcached();
             $memcached->addServer($this->cacheConfig['memcached']['host'], $this->cacheConfig['memcached']['port']);
-            $this->instance = new MemcacheCache();
-            $this->instance->setMemcached($memcached);
+            $this->handler = new MemcacheCache();
+            $this->handler->setMemcached($memcached);
         }
         elseif ($this->cacheType == 'redis' && extension_loaded('redis')) {
             $redis = new Redis();
@@ -99,8 +99,8 @@ class Cache implements CacheInterface
             }
             $redis->select($this->cacheConfig['redis']['index']);
             // $redis->setOption(\Redis::OPT_PREFIX, $this->prefix . ':');
-            $this->instance = new RedisCache();
-            $this->instance->setRedis($redis);
+            $this->handler = new RedisCache();
+            $this->handler->setRedis($redis);
 
         }
         else {
@@ -108,11 +108,11 @@ class Cache implements CacheInterface
                 throw new CacheException('cache path is empty', 1);
 
             }
-            $this->instance = new FilesystemCache($cache_path);
+            $this->handler = new FilesystemCache($cache_path);
         }
-        $this->prefix && $this->instance->setNamespace($this->prefix . ':');
+        $this->prefix && $this->handler->setNamespace($this->prefix . ':');
 
-        return $this->instance;
+        return $this->handler;
     }
 
     /**
@@ -120,7 +120,7 @@ class Cache implements CacheInterface
      */
     public function clear()
     {
-        return $this->instance->deleteAll();
+        return $this->handler->deleteAll();
     }
 
     /**
@@ -156,7 +156,7 @@ class Cache implements CacheInterface
                     unset($tagcopy[$value]);
                     $ck = $tag . $this->fenge . $value;
                     if ($this->has($ck)) {
-                        $this->instance->delete($ck);
+                        $this->handler->delete($ck);
                     }
                 }
                 if (count($tagcopy) == 0) {
@@ -185,7 +185,7 @@ class Cache implements CacheInterface
             $this->set($this->allTagKey, $this->allTags, false);
             //有值的话就删除
             if ($this->has($key)) {
-                return $this->instance->delete($key);
+                return $this->handler->delete($key);
             }
             else {
                 return false;
@@ -220,7 +220,7 @@ class Cache implements CacheInterface
     {
         $key = $this->parseKey($key);
 
-        return $this->has($key) ? $this->instance->fetch($key) : $default;
+        return $this->has($key) ? $this->handler->fetch($key) : $default;
     }
 
     /**
@@ -248,7 +248,7 @@ class Cache implements CacheInterface
      */
     public function has($key)
     {
-        return $this->instance->contains($this->parseKey($key));
+        return $this->handler->contains($this->parseKey($key));
     }
 
     /**
@@ -276,7 +276,7 @@ class Cache implements CacheInterface
             $lifeTime = $this->cacheConfig['expire'];
         }
 
-        return $this->instance->save($this->parseKey($key), $data, $lifeTime);
+        return $this->handler->save($this->parseKey($key), $data, $lifeTime);
     }
 
     /**
@@ -323,7 +323,7 @@ class Cache implements CacheInterface
             [$tag, $key] = explode($this->fenge, $key);
         }
         if ($this->allTags === null) {
-            $this->allTags = $this->instance->fetch($alltagkey);
+            $this->allTags = $this->handler->fetch($alltagkey);
             $this->allTags = $this->allTags ?: [];
         }
 
@@ -331,10 +331,19 @@ class Cache implements CacheInterface
         //然后判断是否设置的有些标签，并且标签里是否保存有
         if ($key && !(isset($this->allTags[$tag]) && isset($this->allTags[$tag][$key]))) {
             $this->allTags[$tag][$key] = $key;
-            $this->instance->save($alltagkey, $this->allTags, false);
+            $this->handler->save($alltagkey, $this->allTags, false);
         }
         // \ank\App::getInstance()->get('debug')->markEnd('Cache:parse');
 
         return $tag . $this->fenge . $key;
+    }
+
+    /**
+     * 返回驱动句柄
+     * @return FilesystemCache|MemcacheCache|RedisCache|null
+     */
+    public function handler()
+    {
+        return $this->handler;
     }
 }
