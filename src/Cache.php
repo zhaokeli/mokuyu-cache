@@ -331,7 +331,7 @@ class Cache implements CacheInterface
         //然后判断是否设置的有些标签，并且标签里是否保存有
         if ($key && !(isset($this->allTags[$tag]) && isset($this->allTags[$tag][$key]))) {
             $this->allTags[$tag][$key] = $key;
-            $this->handler->save($alltagkey, $this->allTags, false);
+            $this->handler->save($alltagkey, $this->allTags, $this->cacheConfig['expire']);
         }
         // \ank\App::getInstance()->get('debug')->markEnd('Cache:parse');
 
