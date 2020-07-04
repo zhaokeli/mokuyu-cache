@@ -13,17 +13,6 @@ use Redis;
 
 class Cache implements CacheInterface
 {
-    /**
-     * 保存标签和标签中包含的key的键
-     * @var string
-     */
-    protected $allTagKey = 'AllTags';
-
-    /**
-     * 当前缓存的所有标签
-     * @var array
-     */
-    protected $allTags = null;
 
     /**
      * 缓存配置
@@ -36,12 +25,6 @@ class Cache implements CacheInterface
      * @var string
      */
     protected $cacheType = '';
-
-    /**
-     * 没有加标签的key默认加到这个标签里
-     * @var string
-     */
-    protected $defaultTag = 'DefaultTag';
 
     /**
      * 标签key的分隔符
@@ -60,6 +43,24 @@ class Cache implements CacheInterface
      * @var string
      */
     protected $prefix = '';
+
+    /**
+     * 缓存标签
+     * @var array
+     */
+    protected $tag;
+
+    /**
+     * 缓存写的次数
+     * @var int
+     */
+    protected $writeTimes = 0;
+
+    /**
+     * 缓存读的次数
+     * @var int
+     */
+    protected $readTimes = 0;
 
     /**
      * 为啦防止冲突每个模块可以定义一个缓存前缀，这个前缀会加到标签前面
@@ -116,14 +117,17 @@ class Cache implements CacheInterface
     }
 
     /**
+     * 清理所有缓存,只是标记数据弃用,速度快,其实还存在于内存中
      * @return bool
      */
     public function clear()
     {
+        $this->writeTimes++;
         return $this->handler->deleteAll();
     }
 
     /**
+     * 减缓存
      * @param string $key
      * @param int    $value
      * @return bool
@@ -133,81 +137,39 @@ class Cache implements CacheInterface
         if (!$key) {
             return false;
         }
-        return $this->has($key) ? $this->set($key, $this->get($key) - $value) : $this->set($key, -$value);
+        $this->writeTimes++;
+        $key = $this->parseKey($key);
+        return $this->handler->contains($key) ?
+            $this->handler->save($key, $this->handler->fetch($key) - $value)
+            : $this->handler->save($key, -$value);
     }
 
     /**
+     * 删除指定缓存
      * @param string $key
      * @return bool
      */
     public function delete($key)
     {
-        $key = $this->parseKey($key);
-        // $this->allTags = $this->get($this->allTagKey, []);
-        //如果最后一个为分隔符,则清空这个标签
-        if (substr($key, -1) == $this->fenge) {
-
-            $tag = substr($key, 0, -1);
-            // if (in_array($tag, array_keys($this->allTags))) {
-            if (isset($this->allTags[$tag])) {
-                $tagarr  = $this->allTags[$tag];
-                $tagcopy = $tagarr;
-                foreach ($tagarr as $key => $value) {
-                    unset($tagcopy[$value]);
-                    $ck = $tag . $this->fenge . $value;
-                    if ($this->has($ck)) {
-                        $this->handler->delete($ck);
-                    }
-                }
-                if (count($tagcopy) == 0) {
-                    unset($this->allTags[$tag]);
-                }
-                else {
-                    $this->allTags[$tag] = $tagcopy;
-                }
-                $this->set($this->allTagKey, $this->allTags, false);
-
-                return true;
-            }
-            else {
-                return false;
-            }
-
-        }
-        else {
-            [$tagkey, $val] = explode($this->fenge, $key);
-            unset($this->allTags[$tagkey][$val]);
-            //删除掉空的标签
-            if (isset($this->allTags[$tagkey]) && count($this->allTags[$tagkey]) == 0) {
-                unset($this->allTags[$tagkey]);
-            }
-            //保存所有标签到缓存
-            $this->set($this->allTagKey, $this->allTags, false);
-            //有值的话就删除
-            if ($this->has($key)) {
-                return $this->handler->delete($key);
-            }
-            else {
-                return false;
-            }
-        }
+        $this->writeTimes++;
+        return $this->handler->delete($this->parseKey($key));
     }
 
     /**
+     * 删除多个缓存
      * @param iterable $keys
      * @return bool
      */
     public function deleteMultiple($keys)
     {
+        if (is_string($keys)) {
+            $keys = explode(',', $keys);
+        }
         if (!is_array($keys)) {
             return false;
         }
-        foreach ($keys as $key => $value) {
-            if (!$this->delete($this->parseKey($value))) {
-                return false;
-            }
-        }
-
+        $this->writeTimes++;
+        $this->handler->deleteMultiple(array_map([$this, 'parseKey'], $keys));
         return true;
     }
 
@@ -220,80 +182,93 @@ class Cache implements CacheInterface
     {
         $key = $this->parseKey($key);
 
-        return $this->has($key) ? $this->handler->fetch($key) : $default;
+        $this->readTimes++;
+        return $this->handler->contains($key) ? $this->handler->fetch($key) : $default;
     }
 
     /**
-     * @param iterable $keys
+     * 一次返回多个值
+     * @param iterable $keys 多个key用,分隔
      * @param null     $default
-     * @return array|iterable
+     * @return array|mixed[]
      */
     public function getMultiple($keys, $default = null)
     {
         if (is_string($keys)) {
             $keys = explode(',', $keys);
         }
-        $data = [];
-        foreach ($keys as $key => $value) {
-            $da           = $this->get($this->parseKey($value));
-            $data[$value] = $da ?: $default;
-        }
-
-        return $data;
+        $this->readTimes++;
+        return $this->handler->fetchMultiple(array_map([$this, 'parseKey'], $keys)) ?: $default;
     }
 
     /**
+     * 是否有值
      * @param string $key
      * @return bool
      */
-    public function has($key)
+    public function has($key): bool
     {
+        $this->readTimes++;
         return $this->handler->contains($this->parseKey($key));
     }
 
     /**
+     * 值加1
      * @param string $key
      * @param int    $value
      * @return bool
      */
-    public function inc($key = '', $value = 1)
+    public function inc($key = '', $value = 1): bool
     {
         if (!$key) {
             return false;
         }
-        return $this->has($key) ? $this->set($key, $this->get($key) + $value) : $this->set($key, $value);
+        $this->writeTimes++;
+        $key = $this->parseKey($key);
+        return $this->handler->contains($key) ?
+            $this->handler->save($key, $this->handler->fetch($key) + $value)
+            : $this->handler->save($key, $value);
     }
 
     /**
+     * 设置缓存
      * @param string $key
      * @param mixed  $data
      * @param bool   $lifeTime
      * @return bool
      */
-    public function set($key, $data, $lifeTime = false)
+    public function set($key, $data, $lifeTime = false): bool
     {
         if ($lifeTime === false) {
             $lifeTime = $this->cacheConfig['expire'];
         }
-
+        if ($this->tag && !$this->handler->contains($key)) {
+            $this->setTagItem($key);
+        }
+        $this->writeTimes++;
         return $this->handler->save($this->parseKey($key), $data, $lifeTime);
     }
 
     /**
-     * @param iterable $values
-     * @param null     $ttl
+     * 设置多个值,不支持添加标签
+     * @param      $keys
+     * @param null $ttl
      * @return bool
      */
-    public function setMultiple($values, $ttl = null)
+    public function setMultiple($keys, $ttl = null)
     {
-        if (!is_array($values)) {
+        if (!is_array($keys)) {
             return false;
         }
-        foreach ($values as $key => $value) {
-            $this->set($key, $value, $ttl);
+        $this->writeTimes++;
+        $new = [];
+        foreach ($keys as $key => $value) {
+            $new[$this->parseKey($key)] = $value;
         }
-
-        return true;
+        //        if ($this->tag && !$this->handler->contains($key)) {
+        //            $this->setTagItem($key);
+        //        }
+        return $this->handler->saveMultiple($new, $ttl);
     }
 
     /**
@@ -306,36 +281,7 @@ class Cache implements CacheInterface
      */
     private function parseKey(string $key): string
     {
-        // \ank\App::getInstance()->get('debug')->markStart('Cache:parse');
-        //all标签key名字
-        $alltagkey = $this->defaultTag . $this->fenge . $this->allTagKey;
-        //已经解析过的直接返回
-        if (strpos($this->fenge, $key) !== false) {
-            return $key;
-        }
-        $key = str_replace('.', $this->fenge, $key);
-        //加载缓存的前缀
-        // $key = strtolower($key);
-        if (strpos($key, $this->fenge) === false) {
-            $tag = $this->defaultTag;
-        }
-        else {
-            [$tag, $key] = explode($this->fenge, $key);
-        }
-        if ($this->allTags === null) {
-            $this->allTags = $this->handler->fetch($alltagkey);
-            $this->allTags = $this->allTags ?: [];
-        }
-
-        //判断key是否为真,为真时才往标签里添加key和值，当是article.这种格式时key为空
-        //然后判断是否设置的有些标签，并且标签里是否保存有
-        if ($key && !(isset($this->allTags[$tag]) && isset($this->allTags[$tag][$key]))) {
-            $this->allTags[$tag][$key] = $key;
-            $this->handler->save($alltagkey, $this->allTags, $this->cacheConfig['expire']);
-        }
-        // \ank\App::getInstance()->get('debug')->markEnd('Cache:parse');
-
-        return $tag . $this->fenge . $key;
+        return str_replace('.', $this->fenge, $key);
     }
 
     /**
@@ -345,5 +291,141 @@ class Cache implements CacheInterface
     public function handler()
     {
         return $this->handler;
+    }
+
+    /**
+     * 设置或重置缓存标签
+     * @access public
+     * @param string       $name    标签名
+     * @param string|array $keys    新的或追加的缓存key
+     * @param bool         $overlay 是否覆盖
+     * @return $this
+     */
+    public function tag($name, $keys = null, $overlay = false)
+    {
+        $name = $this->parseKey($name);
+        if (is_null($keys)) {
+            $this->tag = $name;
+        }
+        else {
+            $key = $this->getTagkey($name);
+            if (is_string($keys)) {
+                $keys = explode(',', $keys);
+            }
+
+            $keys = array_map([$this, 'parseKey'], $keys);
+            if ($overlay) {
+                $value = $keys;
+            }
+            else {
+                $value = array_unique(array_merge($this->getTagItem($name), $keys));
+            }
+
+            $this->set($key, implode(',', $value), 0);
+        }
+
+        return $this;
+    }
+
+    /**
+     * 更新标签
+     * @access protected
+     * @param string $name 缓存标识
+     * @return void
+     */
+    protected function setTagItem($name)
+    {
+        if ($this->tag) {
+            $key       = $this->getTagkey($this->tag);
+            $this->tag = null;
+            if ($this->handler->contains($key)) {
+                $value   = explode(',', $this->get($key));
+                $value[] = $name;
+
+                //最多保存1000个
+                if (count($value) > 1000) {
+                    array_shift($value);
+                }
+
+                $value = implode(',', array_unique($value));
+            }
+            else {
+                $value = $name;
+            }
+            $this->writeTimes++;
+            $this->handler->save($key, $value, 0);
+        }
+    }
+
+    /**
+     * 获取标签包含的缓存标识
+     * @access protected
+     * @param string $tag 缓存标签
+     * @return array
+     */
+    protected function getTagItem($tag)
+    {
+        $this->readTimes++;
+        $value = $this->handler->fetch($this->getTagkey($this->parseKey($tag)));
+
+        if ($value) {
+            return array_filter(explode(',', $value));
+        }
+        else {
+            return [];
+        }
+    }
+
+    /**
+     * 返回标签实际key
+     * @param $tag
+     * @return string
+     */
+    protected function getTagKey($tag)
+    {
+        return 'tag_' . md5($tag);
+    }
+
+    /**
+     * 清除标签缓存
+     * @access public
+     * @param string $tag 标签名
+     * @return boolean
+     */
+    public function clearTag($tag = null)
+    {
+        if ($tag) {
+            $tag = $this->parseKey($tag);
+            // 指定标签清除
+            $keys = $this->getTagItem($tag);
+            $this->handler->deleteMultiple(array_map([$this, 'parseKey'], $keys));
+            $tagName = $this->getTagKey($tag);
+            $this->writeTimes++;
+            $this->handler->delete($tagName);
+            return true;
+        }
+    }
+
+    /**
+     * 清理缓存,数据从内存中真实清理,耗时
+     * @return bool
+     */
+    public function flushAll()
+    {
+        return $this->handler->flushAll();
+    }
+
+    public function setNamespace($namespace)
+    {
+        $this->handler->setNamespace($namespace);
+    }
+
+    /**
+     * Retrieves the namespace that prefixes all cache ids.
+     * @return string
+     */
+    public function getNamespace()
+    {
+        return $this->handler->getNamespace();
     }
 }

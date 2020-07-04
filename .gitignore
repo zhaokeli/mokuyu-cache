@@ -3,3 +3,5 @@
 /*.log
 /*.lock
 /.idea
+/codeCoverage
+/.phpunit.result.cache
