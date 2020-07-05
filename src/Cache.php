@@ -301,7 +301,7 @@ class Cache implements CacheInterface
      * @param bool         $overlay 是否覆盖
      * @return $this
      */
-    public function tag($name, $keys = null, $overlay = false)
+    public function tag($name, $keys = null, $overlay = false): Cache
     {
         $name = $this->parseKey($name);
         if (is_null($keys)) {
