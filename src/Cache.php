@@ -383,7 +383,7 @@ class Cache implements CacheInterface
      */
     protected function getTagKey($tag)
     {
-        return 'tag_' . md5($tag);
+        return 'tags:' . md5($tag);
     }
 
     /**
@@ -427,5 +427,10 @@ class Cache implements CacheInterface
     public function getNamespace()
     {
         return $this->handler->getNamespace();
+    }
+
+    public function getStats()
+    {
+        return $this->handler->getStats();
     }
 }
