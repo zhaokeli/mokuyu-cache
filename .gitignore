@@ -5,3 +5,4 @@
 /.idea
 /codeCoverage
 /.phpunit.result.cache
+/phpunit.xml
