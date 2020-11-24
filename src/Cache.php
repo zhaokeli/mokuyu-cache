@@ -98,7 +98,7 @@ class Cache implements CacheInterface
             if ($pwd != '') {
                 $redis->auth($pwd);
             }
-            $redis->select($this->cacheConfig['redis']['index']);
+            $redis->select($this->cacheConfig['redis']['index'] ?? 0);
             // $redis->setOption(\Redis::OPT_PREFIX, $this->prefix . ':');
             $this->handler = new RedisCache();
             $this->handler->setRedis($redis);
